@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Commission Finder</title>
+  <script type="module">
+    // ——— Firebase SDK (v9+ modular) ———
+    import { initializeApp }                 from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword,
+             signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
+
+    // 🔧 1)  FILL IN YOUR PROJECT SETTINGS
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "firebase/app";
+    import { getAnalytics } from "firebase/analytics";
+
+    // Firebase configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+        apiKey: "AIzaSyCGk5rFFZV9jgjIirTYQjWv46qrdpmlL8I",
+        authDomain: "commission-finder-1bf8d.firebaseapp.com",
+        projectId: "commission-finder-1bf8d",
+        storageBucket: "commission-finder-1bf8d.firebasestorage.app",
+        messagingSenderId: "388186716424",
+        appId: "1:388186716424:web:c2ac138571911d79f694bd",
+        measurementId: "G-CKVT76PHWV"
+    };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+
+    // Elements
+    const regForm   = document.getElementById("regForm");
+    const logForm   = document.getElementById("logForm");
+    const dash      = document.getElementById("dashboard");
+    const btnLogout = document.getElementById("logout");
+    const runBtn    = document.getElementById("runBtn");
+
+    // ———  Registration  ———
+    regForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const first = regForm.firstName.value.trim();
+      const last  = regForm.lastName.value.trim();
+      const email = regForm.email.value.trim();
+      const pass  = regForm.password.value;
+      const key   = regForm.license.value.trim();
+
+      try {
+        // fetch the license key stored at key/{onlyDoc}/key
+        const licSnap = await getDoc(doc(db, "key", "license"));
+        if (!licSnap.exists() || licSnap.data().key !== key) {
+          return alert("❌  License key invalid");
+        }
+
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        await setDoc(doc(db, "users", cred.user.uid), {
+          first, last, email, created: Date.now()
+        });
+        regForm.reset();
+        alert("✅  Registered! Log in now.");
+      } catch (err) {
+        alert("Error: " + err.message);
+      }
+    });
+
+    // ———  Login  ———
+    logForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        await signInWithEmailAndPassword(
+          auth, logForm.emailL.value.trim(), logForm.passwordL.value
+        );
+        logForm.reset();
+      } catch (err) {
+        alert("Login failed: " + err.message);
+      }
+    });
+
+    // ——— Auth state → UI swap ———
+    onAuthStateChanged(auth, (user) => {
+      document.getElementById("authSection").style.display = user ? "none" : "block";
+      dash.style.display                                   = user ? "block" : "none";
+    });
+
+    // ———  Run Cloud Function  ———
+    runBtn.addEventListener("click", async () => {
+      const book = document.getElementById("bookId").value.trim();
+      const comm = document.getElementById("commId").value.trim();
+      if (!book || !comm) return alert("Enter both IDs");
+
+      runBtn.disabled = true;
+      try {
+        const r = await fetch(
+          "https://commissionfinder-1015944900243.us-central1.run.app",
+          {
+            method : "POST",
+            headers: { "Content-Type": "application/json" },
+            body   : JSON.stringify({ bookSheetId: book, commSheetId: comm })
+          });
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error || r.statusText);
+        alert(`✅ Finished. ${json.count} row(s) missing – see your sheet.`);
+      } catch (err) {
+        alert("Function error: " + err.message);
+      } finally { runBtn.disabled = false; }
+    });
+
+    // ———  Logout  ———
+    btnLogout.onclick = () => auth.signOut();
+  </script>
+  <style>
+    body{font-family:sans-serif;max-width:400px;margin:2rem auto}
+    section{margin-bottom:2rem;padding:1rem;border:1px solid #ccc;border-radius:8px}
+    #dashboard{display:none}
+    input,button{padding:6px;margin:4px 0;width:100%}
+  </style>
+</head>
+<body>
+  <h1>Commission Finder</h1>
+
+  <!-- Login / Registration box -->
+  <div id="authSection">
+    <section>
+      <h2>Register</h2>
+      <form id="regForm">
+        <input name="firstName"  placeholder="First name" required>
+        <input name="lastName"   placeholder="Last name"  required>
+        <input name="email"      placeholder="Email"      type="email" required>
+        <input name="password"   placeholder="Password"   type="password" required>
+        <input name="license"    placeholder="License key" required>
+        <button type="submit">Sign Up</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Log In</h2>
+      <form id="logForm">
+        <input name="emailL"    placeholder="Email"    type="email" required>
+        <input name="passwordL" placeholder="Password" type="password" required>
+        <button type="submit">Log In</button>
+      </form>
+    </section>
+  </div>
+
+  <!-- Post-login dashboard -->
+  <section id="dashboard">
+    <p>Enter the two Google Sheet IDs and press **Run**.</p>
+    <input id="bookId" placeholder="Book-of-Business Sheet ID">
+    <input id="commId" placeholder="Commission Sheet ID">
+    <button id="runBtn">Run Missing-Finder</button>
+    <button id="logout" style="background:#eee;">Log Out</button>
+  </section>
+</body>
+</html>
