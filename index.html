@@ -3,39 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <title>Commission Finder</title>
+
   <script type="module">
-    // ——— Firebase SDK (v9+ modular) ———
+    /* ─────────── Firebase SDK (v9+ modular) ─────────── */
     import { initializeApp }                 from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword,
              signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
 
-    // 🔧 1)  FILL IN YOUR PROJECT SETTINGS
-    // Firebase configuration
-    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    /* 🔧 1)  FILL IN YOUR PROJECT SETTINGS */
     const firebaseConfig = {
-        apiKey: "AIzaSyCGk5rFFZV9jgjIirTYQjWv46qrdpmlL8I",
-        authDomain: "commission-finder-1bf8d.firebaseapp.com",
-        projectId: "commission-finder-1bf8d",
-        storageBucket: "commission-finder-1bf8d.firebasestorage.app",
-        messagingSenderId: "388186716424",
-        appId: "1:388186716424:web:c2ac138571911d79f694bd",
-        measurementId: "G-CKVT76PHWV"
+      apiKey:            "AIzaSyCGk5rFFZV9jgjIirTYQjWv46qrdpmlL8I",
+      authDomain:        "commission-finder-1bf8d.firebaseapp.com",
+      projectId:         "commission-finder-1bf8d",
+      storageBucket:     "commission-finder-1bf8d.appspot.com",
+      messagingSenderId: "388186716424",
+      appId:             "1:388186716424:web:c2ac138571911d79f694bd",
+      measurementId:     "G-CKVT76PHWV"
     };
 
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
+    const app  = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db   = getFirestore(app);
 
-    // Elements
+    /* ─────────── UI ELEMENTS ─────────── */
     const regForm   = document.getElementById("regForm");
     const logForm   = document.getElementById("logForm");
     const dash      = document.getElementById("dashboard");
     const btnLogout = document.getElementById("logout");
     const runBtn    = document.getElementById("runBtn");
+    const toggleBtn = document.getElementById("toggleDir");
+    const arrowLbl  = document.getElementById("arrowLbl");
 
-    // ———  Registration  ———
+    /* ───────────  Registration  ─────────── */
     regForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const first = regForm.firstName.value.trim();
@@ -45,7 +45,7 @@
       const key   = regForm.license.value.trim();
 
       try {
-        // fetch the license key stored at key/{onlyDoc}/key
+        /* verify license */
         const licSnap = await getDoc(doc(db, "key", "license"));
         if (!licSnap.exists() || licSnap.data().key !== key) {
           return alert("❌  License key invalid");
@@ -62,7 +62,7 @@
       }
     });
 
-    // ———  Login  ———
+    /* ───────────  Login  ─────────── */
     logForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       try {
@@ -75,37 +75,51 @@
       }
     });
 
-    // ——— Auth state → UI swap ———
+    /* ───────────  Auth state → UI swap  ─────────── */
     onAuthStateChanged(auth, (user) => {
       document.getElementById("authSection").style.display = user ? "none" : "block";
       dash.style.display                                   = user ? "block" : "none";
     });
 
-    // ———  Run Cloud Function  ———
+    /* ───────────  Direction toggle  ─────────── */
+    let direction = "book_to_comm";          // default
+    const updateArrow = () => {
+      arrowLbl.textContent = direction === "book_to_comm" ? "➡️" : "⬅️";
+    };
+    updateArrow();
+
+    toggleBtn.addEventListener("click", () => {
+      direction = direction === "book_to_comm" ? "comm_to_book" : "book_to_comm";
+      updateArrow();
+    });
+
+    /* ───────────  Run Cloud Function  ─────────── */
     runBtn.addEventListener("click", async () => {
       if (!auth.currentUser) return alert("You must be logged in");
-    
+
       const book = document.getElementById("bookId").value.trim();
       const comm = document.getElementById("commId").value.trim();
       if (!book || !comm) return alert("Enter both IDs");
-    
+
       runBtn.disabled = true;
       try {
-        // 1️⃣ Get a fresh Firebase ID token for this user
-        const idToken = await auth.currentUser.getIdToken(/* forceRefresh */ true);
-    
-        // 2️⃣ Call Cloud Run, passing the token in the Authorization header
+        const idToken = await auth.currentUser.getIdToken(true);
+
         const resp = await fetch(
           "https://commissionfinder-1015944900243.us-central1.run.app",
           {
             method : "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${idToken}`   //  ← NEW
+              "Authorization": `Bearer ${idToken}`
             },
-            body: JSON.stringify({ bookSheetId: book, commSheetId: comm })
+            body: JSON.stringify({
+              bookSheetId: book,
+              commSheetId: comm,
+              direction   : direction          // NEW
+            })
           });
-    
+
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || resp.statusText);
         alert(`✅ Finished. ${data.count} row(s) missing – see your sheet.`);
@@ -116,14 +130,18 @@
       }
     });
 
-    // ———  Logout  ———
+    /* ───────────  Logout  ─────────── */
     btnLogout.onclick = () => auth.signOut();
   </script>
+
   <style>
-    body{font-family:sans-serif;max-width:400px;margin:2rem auto}
+    body{font-family:sans-serif;max-width:460px;margin:2rem auto}
     section{margin-bottom:2rem;padding:1rem;border:1px solid #ccc;border-radius:8px}
     #dashboard{display:none}
     input,button{padding:6px;margin:4px 0;width:100%}
+    #dirRow{display:flex;align-items:center;gap:6px;margin:6px 0}
+    #toggleDir{padding:4px 10px;cursor:pointer}
+    .info{cursor:help;font-size:18px;line-height:1}
   </style>
 </head>
 <body>
@@ -155,9 +173,21 @@
 
   <!-- Post-login dashboard -->
   <section id="dashboard">
-    <p>Enter the two Google Sheet IDs and press **Run**.</p>
+    <p>Enter the two Google Sheet IDs, choose direction, then press <strong>Run</strong>.</p>
+
     <input id="bookId" placeholder="Book-of-Business Sheet ID">
-    <input id="commId" placeholder="Commission Sheet ID">
+    <input id="commId" placeholder="Commission Statement Sheet ID">
+
+    <!-- Direction selector -->
+    <div id="dirRow">
+      <span class="info" title="Book ➜ Commission: find people in Book-of-Business NOT in Commission Statement.">ℹ️</span>
+      <strong>Book</strong>
+      <button id="toggleDir" title="Click to reverse comparison">⇄</button>
+      <span id="arrowLbl">➡️</span>
+      <strong>Comm</strong>
+      <span class="info" title="Commission ➜ Book: find people in Commission Statement NOT in Book-of-Business.">ℹ️</span>
+    </div>
+
     <button id="runBtn">Run Missing-Finder</button>
     <button id="logout" style="background:#eee;">Log Out</button>
   </section>
