@@ -5,13 +5,12 @@
   <title>Commission Finder</title>
 
   <script type="module">
-    /* ─────────── Firebase SDK (v9+ modular) ─────────── */
+    /* ───── Firebase SDK (v9+ modular) ───── */
     import { initializeApp }                 from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword,
              signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
 
-    /* 🔧 1)  FILL IN YOUR PROJECT SETTINGS */
     const firebaseConfig = {
       apiKey:            "AIzaSyCGk5rFFZV9jgjIirTYQjWv46qrdpmlL8I",
       authDomain:        "commission-finder-1bf8d.firebaseapp.com",
@@ -26,43 +25,38 @@
     const auth = getAuth(app);
     const db   = getFirestore(app);
 
-    /* ─────────── UI ELEMENTS ─────────── */
+    /* ───── UI ELEMENTS ───── */
     const regForm   = document.getElementById("regForm");
     const logForm   = document.getElementById("logForm");
     const dash      = document.getElementById("dashboard");
     const btnLogout = document.getElementById("logout");
     const runBtn    = document.getElementById("runBtn");
-    const toggleBtn = document.getElementById("toggleDir");
-    const arrowLbl  = document.getElementById("arrowLbl");
+    const arrowLbl  = document.getElementById("arrowLbl");   // clickable arrow
 
-    /* ───────────  Registration  ─────────── */
+    /* ───── Registration ───── */
     regForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const first = regForm.firstName.value.trim();
-      const last  = regForm.lastName.value.trim();
-      const email = regForm.email.value.trim();
-      const pass  = regForm.password.value;
-      const key   = regForm.license.value.trim();
-
+      const { firstName, lastName, email, password, license } = regForm;
       try {
-        /* verify license */
         const licSnap = await getDoc(doc(db, "key", "license"));
-        if (!licSnap.exists() || licSnap.data().key !== key) {
+        if (!licSnap.exists() || licSnap.data().key !== license.value.trim()) {
           return alert("❌  License key invalid");
         }
-
-        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        const cred = await createUserWithEmailAndPassword(
+          auth, email.value.trim(), password.value
+        );
         await setDoc(doc(db, "users", cred.user.uid), {
-          first, last, email, created: Date.now()
+          first : firstName.value.trim(),
+          last  : lastName.value.trim(),
+          email : email.value.trim(),
+          created: Date.now()
         });
         regForm.reset();
         alert("✅  Registered! Log in now.");
-      } catch (err) {
-        alert("Error: " + err.message);
-      }
+      } catch (err) { alert("Error: " + err.message); }
     });
 
-    /* ───────────  Login  ─────────── */
+    /* ───── Login ───── */
     logForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       try {
@@ -70,30 +64,35 @@
           auth, logForm.emailL.value.trim(), logForm.passwordL.value
         );
         logForm.reset();
-      } catch (err) {
-        alert("Login failed: " + err.message);
-      }
+      } catch (err) { alert("Login failed: " + err.message); }
     });
 
-    /* ───────────  Auth state → UI swap  ─────────── */
+    /* ───── Auth → UI swap ───── */
     onAuthStateChanged(auth, (user) => {
       document.getElementById("authSection").style.display = user ? "none" : "block";
       dash.style.display                                   = user ? "block" : "none";
     });
 
-    /* ───────────  Direction toggle  ─────────── */
-    let direction = "book_to_comm";          // default
+    /* ───── Direction toggle (arrow click) ───── */
+    let direction = "book_to_comm";   // default
+
     const updateArrow = () => {
-      arrowLbl.textContent = direction === "book_to_comm" ? "➡️" : "⬅️";
+      if (direction === "book_to_comm") {
+        arrowLbl.textContent = "➡️";
+        arrowLbl.title = "Current: Book ➜ Commission. Click to reverse.";
+      } else {
+        arrowLbl.textContent = "⬅️";
+        arrowLbl.title = "Current: Commission ➜ Book. Click to reverse.";
+      }
     };
     updateArrow();
 
-    toggleBtn.addEventListener("click", () => {
+    arrowLbl.addEventListener("click", () => {
       direction = direction === "book_to_comm" ? "comm_to_book" : "book_to_comm";
       updateArrow();
     });
 
-    /* ───────────  Run Cloud Function  ─────────── */
+    /* ───── Run Cloud Function ───── */
     runBtn.addEventListener("click", async () => {
       if (!auth.currentUser) return alert("You must be logged in");
 
@@ -113,12 +112,9 @@
               "Content-Type": "application/json",
               "Authorization": `Bearer ${idToken}`
             },
-            body: JSON.stringify({
-              bookSheetId: book,
-              commSheetId: comm,
-              direction   : direction          // NEW
-            })
-          });
+            body: JSON.stringify({ bookSheetId: book, commSheetId: comm, direction })
+          }
+        );
 
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || resp.statusText);
@@ -130,7 +126,7 @@
       }
     });
 
-    /* ───────────  Logout  ─────────── */
+    /* ───── Logout ───── */
     btnLogout.onclick = () => auth.signOut();
   </script>
 
@@ -139,9 +135,8 @@
     section{margin-bottom:2rem;padding:1rem;border:1px solid #ccc;border-radius:8px}
     #dashboard{display:none}
     input,button{padding:6px;margin:4px 0;width:100%}
-    #dirRow{display:flex;align-items:center;gap:6px;margin:6px 0}
-    #toggleDir{padding:4px 10px;cursor:pointer}
-    .info{cursor:help;font-size:18px;line-height:1}
+    #dirRow{display:flex;align-items:center;gap:8px;margin:6px 0;font-weight:bold}
+    #arrowLbl{cursor:pointer;font-size:24px;user-select:none}
   </style>
 </head>
 <body>
@@ -180,15 +175,12 @@
 
     <!-- Direction selector -->
     <div id="dirRow">
-      <span class="info" title="Book ➜ Commission: find people in Book-of-Business NOT in Commission Statement.">ℹ️</span>
-      <strong>Book</strong>
-      <button id="toggleDir" title="Click to reverse comparison">⇄</button>
+      <span>Book</span>
       <span id="arrowLbl">➡️</span>
-      <strong>Comm</strong>
-      <span class="info" title="Commission ➜ Book: find people in Commission Statement NOT in Book-of-Business.">ℹ️</span>
+      <span>Comm</span>
     </div>
 
-    <button id="runBtn">Run Missing-Finder</button>
+    <button id="runBtn">Run</button>
     <button id="logout" style="background:#eee;">Log Out</button>
   </section>
 </body>
