@@ -83,25 +83,37 @@
 
     // ———  Run Cloud Function  ———
     runBtn.addEventListener("click", async () => {
+      if (!auth.currentUser) return alert("You must be logged in");
+    
       const book = document.getElementById("bookId").value.trim();
       const comm = document.getElementById("commId").value.trim();
       if (!book || !comm) return alert("Enter both IDs");
-
+    
       runBtn.disabled = true;
       try {
-        const r = await fetch(
+        // 1️⃣ Get a fresh Firebase ID token for this user
+        const idToken = await auth.currentUser.getIdToken(/* forceRefresh */ true);
+    
+        // 2️⃣ Call Cloud Run, passing the token in the Authorization header
+        const resp = await fetch(
           "https://commissionfinder-1015944900243.us-central1.run.app",
           {
             method : "POST",
-            headers: { "Content-Type": "application/json" },
-            body   : JSON.stringify({ bookSheetId: book, commSheetId: comm })
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${idToken}`   //  ← NEW
+            },
+            body: JSON.stringify({ bookSheetId: book, commSheetId: comm })
           });
-        const json = await r.json();
-        if (!r.ok) throw new Error(json.error || r.statusText);
-        alert(`✅ Finished. ${json.count} row(s) missing – see your sheet.`);
+    
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || resp.statusText);
+        alert(`✅ Finished. ${data.count} row(s) missing – see your sheet.`);
       } catch (err) {
         alert("Function error: " + err.message);
-      } finally { runBtn.disabled = false; }
+      } finally {
+        runBtn.disabled = false;
+      }
     });
 
     // ———  Logout  ———
