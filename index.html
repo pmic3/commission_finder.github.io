@@ -31,7 +31,6 @@
     const dash      = document.getElementById("dashboard");
     const btnLogout = document.getElementById("logout");
     const runBtn    = document.getElementById("runBtn");
-    const arrowLbl  = document.getElementById("arrowLbl");   // clickable arrow
 
     /* ───── Registration ───── */
     regForm.addEventListener("submit", async (e) => {
@@ -73,32 +72,14 @@
       dash.style.display                                   = user ? "block" : "none";
     });
 
-    /* ───── Direction toggle (arrow click) ───── */
-    let direction = "book_to_comm";   // default
-
-    const updateArrow = () => {
-      if (direction === "book_to_comm") {
-        arrowLbl.textContent = "➡️";
-        arrowLbl.title = "Current: Book ➜ Commission. Click to reverse.";
-      } else {
-        arrowLbl.textContent = "⬅️";
-        arrowLbl.title = "Current: Commission ➜ Book. Click to reverse.";
-      }
-    };
-    updateArrow();
-
-    arrowLbl.addEventListener("click", () => {
-      direction = direction === "book_to_comm" ? "comm_to_book" : "book_to_comm";
-      updateArrow();
-    });
-
     /* ───── Run Cloud Function ───── */
     runBtn.addEventListener("click", async () => {
       if (!auth.currentUser) return alert("You must be logged in");
 
-      const book = document.getElementById("bookId").value.trim();
-      const comm = document.getElementById("commId").value.trim();
-      if (!book || !comm) return alert("Enter both IDs");
+      const book  = document.getElementById("bookId").value.trim();
+      const comm  = document.getElementById("commId").value.trim();
+      const date  = document.getElementById("cutoffDate").value.trim();
+      if (!book || !comm || !date) return alert("Enter the two IDs and a date.");
 
       runBtn.disabled = true;
       try {
@@ -112,13 +93,17 @@
               "Content-Type": "application/json",
               "Authorization": `Bearer ${idToken}`
             },
-            body: JSON.stringify({ bookSheetId: book, commSheetId: comm, direction })
+            body: JSON.stringify({
+              bookSheetId : book,
+              commSheetId : comm,
+              cutoffDate  : date            // new parameter
+            })
           }
         );
 
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || resp.statusText);
-        alert(`✅ Finished. ${data.count} row(s) missing – see your sheet.`);
+        alert(`✅ Finished. ${data.count} client(s) with missing months – see your sheet.`);
       } catch (err) {
         alert("Function error: " + err.message);
       } finally {
@@ -135,8 +120,6 @@
     section{margin-bottom:2rem;padding:1rem;border:1px solid #ccc;border-radius:8px}
     #dashboard{display:none}
     input,button{padding:6px;margin:4px 0;width:100%}
-    #dirRow{display:flex;align-items:center;gap:8px;margin:6px 0;font-weight:bold}
-    #arrowLbl{cursor:pointer;font-size:24px;user-select:none}
   </style>
 </head>
 <body>
@@ -168,17 +151,11 @@
 
   <!-- Post-login dashboard -->
   <section id="dashboard">
-    <p>Enter the two Google Sheet IDs, choose direction, then press <strong>Run</strong>.</p>
+    <p>Enter the Google Sheet IDs and the cutoff date (<em>MM/DD/YYYY</em>), then press <strong>Run</strong>.</p>
 
-    <input id="bookId" placeholder="Book-of-Business Sheet ID">
-    <input id="commId" placeholder="Commission Statement Sheet ID">
-
-    <!-- Direction selector -->
-    <div id="dirRow">
-      <span>Book of Business</span>
-      <span id="arrowLbl">➡️</span>
-      <span>Commission Statement</span>
-    </div>
+    <input id="bookId"    placeholder="Book-of-Business Sheet ID">
+    <input id="commId"    placeholder="Commission Statement Sheet ID">
+    <input id="cutoffDate" placeholder="Cutoff Date (MM/DD/YYYY)">
 
     <button id="runBtn">Run</button>
     <button id="logout" style="background:#eee;">Log Out</button>
